@@ -1,0 +1,186 @@
+openapi: 3.0.0
+info:
+  title: Pokemon Cards API
+  description: API for managing Pokemon card collection
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+    description: Development server
+paths:
+  /cards:
+    get:
+      description: Get all pokemon cards
+      responses:
+        200:
+          description: List of all pokemon cards
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cards:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PokemonCard'
+    post:
+      description: Add a new pokemon card
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PokemonCard'
+      responses:
+        200:
+          description: Card added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Card added successfully
+  
+  /cards/{id}:
+    description: Get a pokemon card by ID
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: The unique identifier of the Pokemon card
+        schema:
+          type: string
+        example: "base1-1"
+    get:
+      description: Get a pokemon card by ID
+      responses:
+        200:
+          description: Pokemon card details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cards:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PokemonCard'
+              example:
+                cards:
+                  - id: "base1-1"
+                    set: "Base"
+                    series: "Base"
+                    generation: "First"
+                    release_date: "1999-01-09"
+                    name: "Alakazam"
+                    set_num: "1"
+                    types: "Psychic"
+                    supertype: "Pokémon"
+                    hp: 80
+                    evolvesfrom: "Kadabra"
+                    evolvesto: null
+                    rarity: "Rare Holo"
+                    flavortext: "Its brain can outperform a supercomputer."
+        404:
+          description: Card not found
+    put:
+      description: Update a pokemon card
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PokemonCard'
+      responses:
+        200:
+          description: Card updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Card updated successfully
+    delete:
+      description: Delete a pokemon card
+      responses:
+        200:
+          description: Card deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Card deleted successfully
+
+  /upload:
+    post:
+      description: Upload card image
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: The card ID to associate the image with
+          schema:
+            type: string
+          example: "base1-1"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        200:
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  filename:
+                    type: string
+
+components:
+  schemas:
+    PokemonCard:
+      type: object
+      properties:
+        id:
+          type: string
+        set:
+          type: string
+        series:
+          type: string
+        generation:
+          type: string
+        release_date:
+          type: string
+        name:
+          type: string
+        set_num:
+          type: string
+        types:
+          type: string
+        supertype:
+          type: string
+        hp:
+          type: integer
+        evolvesfrom:
+          type: string
+        evolvesto:
+          type: string
+        rarity:
+          type: string
+        flavortext:
+          type: string
