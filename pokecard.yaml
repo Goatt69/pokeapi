@@ -4,7 +4,7 @@ info:
   description: API for managing Pokemon card collection
   version: 1.0.0
 servers:
-  - url: http://localhost:8000
+  - url: https://8000-idx-pokeapi-1734620675461.cluster-3g4scxt2njdd6uovkqyfcabgo6.cloudworkstations.dev
     description: Development server
 paths:
   /cards:

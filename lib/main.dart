@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:pokeapi/pokecard_entity.dart';
+import 'package:pokeapi/services/api_service.dart';
 
-void main() {
-  runApp(MyApp());
+Future<void> main() async {
+  await dotenv.load(fileName: ".env");
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+  
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -27,6 +32,7 @@ class PokemonCardBrowser extends StatefulWidget {
 }
 
 class _PokemonCardBrowserState extends State<PokemonCardBrowser> {
+  final ApiService _apiService = ApiService();
   List<PokecardEntity> cards = [];
   List<PokecardEntity> filteredCards = [];
   TextEditingController searchController = TextEditingController();
@@ -38,20 +44,17 @@ class _PokemonCardBrowserState extends State<PokemonCardBrowser> {
   }
 
   Future<void> fetchCards() async {
-    final response = await http.get(Uri.parse('http://localhost:8000/cards'));
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      List<PokecardEntity> fetchedCards = (data['cards'] as List)
-          .map((card) => PokecardEntity.fromJson(card))
-          .toList();
-      
-      // Sort cards by name
+    try {
+      final fetchedCards = await _apiService.fetchCards();
       fetchedCards.sort((a, b) => (a.name ?? '').compareTo(b.name ?? ''));
       
       setState(() {
         cards = fetchedCards;
         filteredCards = fetchedCards;
       });
+    } catch (e) {
+      print('Error fetching cards: $e');
+      // Handle error appropriately
     }
   }
 
@@ -103,7 +106,7 @@ class _PokemonCardBrowserState extends State<PokemonCardBrowser> {
                     children: [
                       Expanded(
                         child: Image.network(
-                          'http://localhost:8000/cards/${card.id}/${card.setNum}.jpg',
+                          'https://8000-idx-pokeapi-1734620675461.cluster-3g4scxt2njdd6uovkqyfcabgo6.cloudworkstations.dev/cards/${card.id}/${card.setNum}.jpg',
                           fit: BoxFit.contain,
                           errorBuilder: (context, error, stackTrace) =>
                           const Center(child: Text('Image not available')),

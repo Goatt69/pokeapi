@@ -8,8 +8,7 @@ import 'package:postgres/postgres.dart';
 import 'package:mime/mime.dart';
 import 'package:shelf_swagger_ui/shelf_swagger_ui.dart';
 
-
-void main() async {
+Future<void> startServer() async {
   final connection = await Connection.open(Endpoint(
       host: "effortlessly-seasoned-zebu.data-1.apse1.tembo.io",
       database: 'Doan',
@@ -21,17 +20,17 @@ void main() async {
   router.get('/cards/<id>/<filename>', (Request request, String id, String filename) async {
     // First verify if this card exists and has this set_num
     final cardResult = await connection.execute(
-      Sql.named('SELECT set_num FROM pokemon_cards WHERE id = @id'),
-      parameters: {'id': id}
+        Sql.named('SELECT set_num FROM pokemon_cards WHERE id = @id'),
+        parameters: {'id': id}
     );
-    
+
     if (cardResult.isEmpty) {
       return Response.notFound('Card not found');
     }
-    
+
     final correctSetNum = cardResult[0][0] as String;
     final requestedSetNum = filename.split('.')[0]; // Get "1" from "1.jpg"
-    
+
     if (correctSetNum != requestedSetNum) {
       return Response.notFound('Image does not belong to this card');
     }
@@ -57,17 +56,17 @@ void main() async {
 
       // Verify if card exists in database
       final cardExists = await connection.execute(
-        Sql.named('SELECT set_num FROM pokemon_cards WHERE id = @id'),
-        parameters: {'id': cardId}
+          Sql.named('SELECT set_num FROM pokemon_cards WHERE id = @id'),
+          parameters: {'id': cardId}
       );
-      
+
       if (cardExists.isEmpty) {
         return Response.badRequest(body: jsonEncode({'error': 'Card ID not found'}));
       }
 
       final setNum = cardExists[0][0] as String;
       final setName = cardId.split('-')[0]; // Extract 'base1' from 'base1-1'
-      
+
       final contentType = request.headers['content-type'];
       if (contentType == null || !contentType.contains('multipart/form-data')) {
         return Response.badRequest(body: jsonEncode({'error': 'Invalid Content-Type'}));
@@ -104,18 +103,18 @@ void main() async {
         // Use set_num for the filename
         final newFilename = '$setNum.jpg';
         final file = File('./uploads/$setName/$newFilename');
-        
+
         await file.writeAsBytes(
-          await part.toList().then((list) => list.expand((e) => e).toList())
+            await part.toList().then((list) => list.expand((e) => e).toList())
         );
 
         return Response.ok(
-          jsonEncode({
-            'message': 'File uploaded successfully',
-            'filename': newFilename,
-            'path': '/uploads/$setName/$newFilename'
-          }),
-          headers: {'Content-Type': 'application/json'}
+            jsonEncode({
+              'message': 'File uploaded successfully',
+              'filename': newFilename,
+              'path': '/uploads/$setName/$newFilename'
+            }),
+            headers: {'Content-Type': 'application/json'}
         );
       }
 
@@ -123,8 +122,8 @@ void main() async {
     } catch (e) {
       print('Upload error: $e');
       return Response.internalServerError(
-        body: jsonEncode({'error': 'Error processing upload: $e'}),
-        headers: {'Content-Type': 'application/json'}
+          body: jsonEncode({'error': 'Error processing upload: $e'}),
+          headers: {'Content-Type': 'application/json'}
       );
     }
   });
@@ -134,11 +133,11 @@ void main() async {
       final result = await connection.execute('SELECT * FROM pokemon_cards');
       if (result.isEmpty) {
         return Response.ok(
-          jsonEncode({'cards': []}),
-          headers: {'Content-Type': 'application/json'}
+            jsonEncode({'cards': []}),
+            headers: {'Content-Type': 'application/json'}
         );
       }
-      
+
       final jsonData = result.map((row) {
         final map = row.toColumnMap();
         map.updateAll((key, value) {
@@ -151,14 +150,14 @@ void main() async {
       }).toList();
 
       return Response.ok(
-        jsonEncode({'cards': jsonData}),
-        headers: {'Content-Type': 'application/json'}
+          jsonEncode({'cards': jsonData}),
+          headers: {'Content-Type': 'application/json'}
       );
     } catch (e) {
       print('Database error: $e');
       return Response.internalServerError(
-        body: jsonEncode({'error': 'Database error occurred'}),
-        headers: {'Content-Type': 'application/json'}
+          body: jsonEncode({'error': 'Database error occurred'}),
+          headers: {'Content-Type': 'application/json'}
       );
     }
   });
@@ -187,7 +186,7 @@ void main() async {
     }).toList();
 
     return Response.ok(jsonEncode({'cards': jsonData}), headers: {'Content-Type': 'application/json'});
-    
+
   });
 
   // POST: Insert a new card
@@ -233,31 +232,42 @@ void main() async {
 
   // Create separate handlers
   final apiHandler = Pipeline()
-      .addMiddleware(corsHeaders())
-      .addHandler(router);
-
+      .addMiddleware(corsHeaders(
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Origin, Content-Type, X-Auth-Token',
+      'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Max-Age': '86400', // 24 hours
+    },
+  ))
+    .addHandler(router);
   final swaggerHandler = SwaggerUI(
-      'pokecard.yaml',
-      title: 'Pokemon Cards API',
+    'pokecard.yaml',
+    title: 'Pokemon Cards API',
   );
 
-  // Combine handlers with correct priority
   final handler = Pipeline()
-      .addMiddleware(corsHeaders())
+      .addMiddleware(corsHeaders(headers: {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': '*',
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Expose-Headers': 'Content-Length, Content-Type',
+  },))
       .addHandler((request) {
-        // Serve API endpoints if the path starts with /cards or /upload
-        if (request.url.path.startsWith('cards') || 
-            request.url.path.startsWith('upload')) {
-          return apiHandler(request);
-        }
-        // Otherwise serve Swagger UI
-        return swaggerHandler(request);
-      });
+    if (request.url.path.startsWith('cards') ||
+        request.url.path.startsWith('upload')) {
+      return apiHandler(request);
+    }
+    return swaggerHandler(request);
+  });
 
-  final server = await io.serve(handler, 'localhost', 8000);
-  
+  final server = await io.serve(handler, '0.0.0.0', 8000);
+
   print('Server running on http://${server.address.host}:${server.port}');
 }
 
-  
-
+void main() async {
+  await startServer();
+}
