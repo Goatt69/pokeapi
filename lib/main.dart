@@ -38,7 +38,7 @@ class _PokemonCardBrowserState extends State<PokemonCardBrowser> {
   }
 
   Future<void> fetchCards() async {
-    final response = await http.get(Uri.parse('http://localhost:8000/cards'));
+    final response = await http.get(Uri.parse('https://8000-idx-pokeapi-1734620675461.cluster-3g4scxt2njdd6uovkqyfcabgo6.cloudworkstations.dev/cards'));
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       List<PokecardEntity> fetchedCards = (data['cards'] as List)
@@ -103,7 +103,7 @@ class _PokemonCardBrowserState extends State<PokemonCardBrowser> {
                     children: [
                       Expanded(
                         child: Image.network(
-                          'http://localhost:8000/cards/${card.id}/${card.setNum}.jpg',
+                          'https://8000-idx-pokeapi-1734620675461.cluster-3g4scxt2njdd6uovkqyfcabgo6.cloudworkstations.dev/cards/${card.id}/${card.setNum}.jpg',
                           fit: BoxFit.contain,
                           errorBuilder: (context, error, stackTrace) =>
                           const Center(child: Text('Image not available')),

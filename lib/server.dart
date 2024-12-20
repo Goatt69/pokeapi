@@ -8,8 +8,7 @@ import 'package:postgres/postgres.dart';
 import 'package:mime/mime.dart';
 import 'package:shelf_swagger_ui/shelf_swagger_ui.dart';
 
-
-void main() async {
+Future<void> startServer() async {
   final connection = await Connection.open(Endpoint(
       host: "effortlessly-seasoned-zebu.data-1.apse1.tembo.io",
       database: 'Doan',
@@ -233,31 +232,43 @@ void main() async {
 
   // Create separate handlers
   final apiHandler = Pipeline()
-      .addMiddleware(corsHeaders())
-      .addHandler(router);
+    .addMiddleware(corsHeaders(
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': '*',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Expose-Headers': 'Content-Length, Content-Type',
+      },
+    ))
+    .addHandler(router);
 
-  final swaggerHandler = SwaggerUI(
-      'pokecard.yaml',
-      title: 'Pokemon Cards API',
-  );
+final swaggerHandler = SwaggerUI(
+    'pokecard.yaml',
+    title: 'Pokemon Cards API',
+);
 
-  // Combine handlers with correct priority
-  final handler = Pipeline()
-      .addMiddleware(corsHeaders())
-      .addHandler((request) {
-        // Serve API endpoints if the path starts with /cards or /upload
-        if (request.url.path.startsWith('cards') || 
-            request.url.path.startsWith('upload')) {
-          return apiHandler(request);
-        }
-        // Otherwise serve Swagger UI
-        return swaggerHandler(request);
-      });
+final handler = Pipeline()
+    .addMiddleware(corsHeaders(headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': '*',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Expose-Headers': 'Content-Length, Content-Type',
+      },))
+    .addHandler((request) {
+      if (request.url.path.startsWith('cards') || 
+          request.url.path.startsWith('upload')) {
+        return apiHandler(request);
+      }
+      return swaggerHandler(request);
+    });
 
-  final server = await io.serve(handler, 'localhost', 8000);
+  final server = await io.serve(handler, '0.0.0.0', 8000);
   
   print('Server running on http://${server.address.host}:${server.port}');
 }
 
-  
-
+void main() async {
+  await startServer();
+}

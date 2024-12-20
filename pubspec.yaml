@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 0.1.0
 
 environment:
-  sdk: ^3.5.4
+  sdk: ^3.5.3
 dependency_overrides:
   collection: ^1.19.1
   path: ^1.9.1
