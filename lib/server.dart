@@ -8,7 +8,7 @@ import 'package:postgres/postgres.dart';
 import 'package:mime/mime.dart';
 import 'package:shelf_swagger_ui/shelf_swagger_ui.dart';
 
-Future<void> startServer() async {
+void main() async {
   final connection = await Connection.open(Endpoint(
       host: "effortlessly-seasoned-zebu.data-1.apse1.tembo.io",
       database: 'Doan',
@@ -20,17 +20,17 @@ Future<void> startServer() async {
   router.get('/cards/<id>/<filename>', (Request request, String id, String filename) async {
     // First verify if this card exists and has this set_num
     final cardResult = await connection.execute(
-        Sql.named('SELECT set_num FROM pokemon_cards WHERE id = @id'),
-        parameters: {'id': id}
+      Sql.named('SELECT set_num FROM pokemon_cards WHERE id = @id'),
+      parameters: {'id': id}
     );
-
+    
     if (cardResult.isEmpty) {
       return Response.notFound('Card not found');
     }
-
+    
     final correctSetNum = cardResult[0][0] as String;
     final requestedSetNum = filename.split('.')[0]; // Get "1" from "1.jpg"
-
+    
     if (correctSetNum != requestedSetNum) {
       return Response.notFound('Image does not belong to this card');
     }
@@ -56,17 +56,17 @@ Future<void> startServer() async {
 
       // Verify if card exists in database
       final cardExists = await connection.execute(
-          Sql.named('SELECT set_num FROM pokemon_cards WHERE id = @id'),
-          parameters: {'id': cardId}
+        Sql.named('SELECT set_num FROM pokemon_cards WHERE id = @id'),
+        parameters: {'id': cardId}
       );
-
+      
       if (cardExists.isEmpty) {
         return Response.badRequest(body: jsonEncode({'error': 'Card ID not found'}));
       }
 
       final setNum = cardExists[0][0] as String;
       final setName = cardId.split('-')[0]; // Extract 'base1' from 'base1-1'
-
+      
       final contentType = request.headers['content-type'];
       if (contentType == null || !contentType.contains('multipart/form-data')) {
         return Response.badRequest(body: jsonEncode({'error': 'Invalid Content-Type'}));
@@ -103,18 +103,18 @@ Future<void> startServer() async {
         // Use set_num for the filename
         final newFilename = '$setNum.jpg';
         final file = File('./uploads/$setName/$newFilename');
-
+        
         await file.writeAsBytes(
-            await part.toList().then((list) => list.expand((e) => e).toList())
+          await part.toList().then((list) => list.expand((e) => e).toList())
         );
 
         return Response.ok(
-            jsonEncode({
-              'message': 'File uploaded successfully',
-              'filename': newFilename,
-              'path': '/uploads/$setName/$newFilename'
-            }),
-            headers: {'Content-Type': 'application/json'}
+          jsonEncode({
+            'message': 'File uploaded successfully',
+            'filename': newFilename,
+            'path': '/uploads/$setName/$newFilename'
+          }),
+          headers: {'Content-Type': 'application/json'}
         );
       }
 
@@ -122,8 +122,8 @@ Future<void> startServer() async {
     } catch (e) {
       print('Upload error: $e');
       return Response.internalServerError(
-          body: jsonEncode({'error': 'Error processing upload: $e'}),
-          headers: {'Content-Type': 'application/json'}
+        body: jsonEncode({'error': 'Error processing upload: $e'}),
+        headers: {'Content-Type': 'application/json'}
       );
     }
   });
@@ -133,11 +133,11 @@ Future<void> startServer() async {
       final result = await connection.execute('SELECT * FROM pokemon_cards');
       if (result.isEmpty) {
         return Response.ok(
-            jsonEncode({'cards': []}),
-            headers: {'Content-Type': 'application/json'}
+          jsonEncode({'cards': []}),
+          headers: {'Content-Type': 'application/json'}
         );
       }
-
+      
       final jsonData = result.map((row) {
         final map = row.toColumnMap();
         map.updateAll((key, value) {
@@ -150,14 +150,14 @@ Future<void> startServer() async {
       }).toList();
 
       return Response.ok(
-          jsonEncode({'cards': jsonData}),
-          headers: {'Content-Type': 'application/json'}
+        jsonEncode({'cards': jsonData}),
+        headers: {'Content-Type': 'application/json'}
       );
     } catch (e) {
       print('Database error: $e');
       return Response.internalServerError(
-          body: jsonEncode({'error': 'Database error occurred'}),
-          headers: {'Content-Type': 'application/json'}
+        body: jsonEncode({'error': 'Database error occurred'}),
+        headers: {'Content-Type': 'application/json'}
       );
     }
   });
@@ -181,45 +181,115 @@ Future<void> startServer() async {
         return value;
       });
       // Add image URL using set_num
-      map['image_url'] = 'http://localhost:8000/cards/${map['id']}/${map['set_num']}.jpg';
+      map['image_url'] = 'https://localhost:8000/cards/${map['id']}/${map['set_num']}.jpg';
       return map;
     }).toList();
 
     return Response.ok(jsonEncode({'cards': jsonData}), headers: {'Content-Type': 'application/json'});
-
+    
   });
-
   // POST: Insert a new card
   router.post('/cards', (Request request) async {
-    final body = await request.readAsString();
-    final card = jsonDecode(body);
+    try {
+      final body = await request.readAsString();
+      final card = jsonDecode(body);
+      
+      await connection.execute(
+        Sql.named('''
+          INSERT INTO pokemon_cards (
+            id, set, series, generation, release_date, name, 
+            set_num, types, supertype, hp, evolvesfrom, 
+            evolvesto, rarity, flavortext
+          ) VALUES (
+            @id, @set, @series, @generation, @release_date, @name,
+            @set_num, @types, @supertype, @hp, @evolvesfrom,
+            @evolvesto, @rarity, @flavortext
+          )
+        '''),
+        parameters: {
+          'id': card['id'],
+          'set': card['set'],
+          'series': card['series'],
+          'generation': card['generation'],
+          'release_date': card['release_date'],
+          'name': card['name'],
+          'set_num': card['set_num'],
+          'types': card['types'],
+          'supertype': card['supertype'],
+          'hp': card['hp'],
+          'evolvesfrom': card['evolvesfrom'],
+          'evolvesto': card['evolvesto'],
+          'rarity': card['rarity'],
+          'flavortext': card['flavortext']
+        }
+      );
 
-    await connection.execute('''
-    INSERT INTO pokemon_cards (id, set, series, generation, release_date, name, set_num, types, supertype, hp, evolvesFrom, evolvesTo, rarity, flavorText)
-    VALUES (@id, @set, @series, @generation, @release_date, @name, @set_num, @types, @supertype, @hp, @evolvesFrom, @evolvesTo, @rarity, @flavorText)
-  ''', parameters: card);
-
-    return Response.ok(jsonEncode({'message': 'Card added successfully'}),
-        headers: {'Content-Type': 'application/json'});
-  });
-
+      return Response.ok(
+        jsonEncode({'message': 'Card added successfully'}),
+        headers: {'Content-Type': 'application/json'}
+      );
+    } catch (e) {
+      print('Error adding card: $e');
+      return Response.internalServerError(
+        body: jsonEncode({'error': 'Failed to add card: $e'}),
+        headers: {'Content-Type': 'application/json'}
+      );
+    }
+  });  
   // PUT: Update a card
   router.put('/cards/<id>', (Request request, String id) async {
-    final body = await request.readAsString();
-    final card = jsonDecode(body);
+    try {
+      final body = await request.readAsString();
+      final card = jsonDecode(body);
+    
+      await connection.execute(
+        Sql.named('''
+          UPDATE pokemon_cards SET 
+            set = @set,
+            series = @series,
+            generation = @generation,
+            release_date = @release_date,
+            name = @name,
+            set_num = @set_num,
+            types = @types,
+            supertype = @supertype,
+            hp = @hp,
+            evolvesfrom = @evolvesfrom,
+            evolvesto = @evolvesto,
+            rarity = @rarity,
+            flavortext = @flavortext
+          WHERE id = @id
+        '''),
+        parameters: {
+          'id': id,
+          'set': card['set'],
+          'series': card['series'],
+          'generation': card['generation'],
+          'release_date': card['release_date'],
+          'name': card['name'],
+          'set_num': card['set_num'],
+          'types': card['types'],
+          'supertype': card['supertype'],
+          'hp': card['hp'],
+          'evolvesfrom': card['evolvesfrom'],
+          'evolvesto': card['evolvesto'],
+          'rarity': card['rarity'],
+          'flavortext': card['flavortext']
+        }
+      );
 
-    await connection.execute('''
-    UPDATE pokemon_cards
-    SET set = @set, series = @series, generation = @generation, release_date = @release_date,
-        name = @name, set_num = @set_num, types = @types, supertype = @supertype,
-        hp = @hp, evolvesFrom = @evolvesFrom, evolvesTo = @evolvesTo, rarity = @rarity, flavorText = @flavorText
-    WHERE id = @id
-  ''', parameters: {...card, 'id': id});
-
-    return Response.ok(jsonEncode({'message': 'Card updated successfully'}),
-        headers: {'Content-Type': 'application/json'});
+      return Response.ok(
+        jsonEncode({'message': 'Card updated successfully'}),
+        headers: {'Content-Type': 'application/json'}
+      );
+    } catch (e) {
+      print('Error updating card: $e');
+      return Response.internalServerError(
+        body: jsonEncode({'error': 'Failed to update card: $e'}),
+        headers: {'Content-Type': 'application/json'}
+      );
+    }
   });
-
   // DELETE: Delete a card
   router.delete('/cards/<id>', (Request request, String id) async {
     final result = await connection.execute(
@@ -230,18 +300,51 @@ Future<void> startServer() async {
         headers: {'Content-Type': 'application/json'});
   });
 
+
+  router.get('/pokemon/names', (Request request) async {
+    try {
+      // Query to fetch all Pokémon names and ids
+      final result = await connection.execute(
+          Sql('SELECT id, name FROM pokemon_cards'));
+
+      if (result.isEmpty) {
+        return Response.ok(
+            jsonEncode({'data': []}),
+            headers: {'Content-Type': 'application/json'});
+      }
+
+      // Map query result to JSON
+      final data = result.map((row) {
+        final map = row.toColumnMap();
+        return {
+          'id': map['id'] as String, // Xử lý id là kiểu String
+          'name': map['name'] as String, // Xử lý name là kiểu String
+        };
+      }).toList();
+
+      return Response.ok(
+          jsonEncode({'data': data}),
+          headers: {'Content-Type': 'application/json'});
+    } catch (e) {
+      print('Error fetching Pokémon data: $e');
+      return Response.internalServerError(
+          body: jsonEncode({'error': 'Failed to fetch Pokémon data'}),
+          headers: {'Content-Type': 'application/json'});
+    }
+  });
+  
   // Create separate handlers
   final apiHandler = Pipeline()
       .addMiddleware(corsHeaders(
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Origin, Content-Type, X-Auth-Token',
+      'Access-Control-Allow-Headers': 'Origin, Content-Type, X-Auth-Token',
       'Access-Control-Allow-Credentials': 'true',
-        'Access-Control-Max-Age': '86400', // 24 hours
+      'Access-Control-Max-Age': '86400', // 24 hours
     },
   ))
-    .addHandler(router);
+      .addHandler(router);
   final swaggerHandler = SwaggerUI(
     'pokecard.yaml',
     title: 'Pokemon Cards API',
@@ -249,25 +352,35 @@ Future<void> startServer() async {
 
   final handler = Pipeline()
       .addMiddleware(corsHeaders(headers: {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': '*', // Cho phép tất cả các domain
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': '*',
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Expose-Headers': 'Content-Length, Content-Type',
-  },))
+  }))
       .addHandler((request) {
+    // Kiểm tra các route API
     if (request.url.path.startsWith('cards') ||
-        request.url.path.startsWith('upload')) {
-      return apiHandler(request);
+        request.url.path.startsWith('upload') ||
+        request.url.path.startsWith('pokemon/names')) {
+      return apiHandler(request); // Xử lý API
     }
-    return swaggerHandler(request);
+    // Phục vụ Swagger UI
+    if (request.url.path == 'pokecard.yaml') {
+      final file = File('pokecard.yaml'); // Đường dẫn tới file YAML
+      if (file.existsSync()) {
+        return Response.ok(file.readAsStringSync(), headers: {
+          'Content-Type': 'application/x-yaml',
+        });
+      } else {
+        return Response.notFound('pokecard.yaml not found');
+      }
+    }
+    return swaggerHandler(request); // Trả về Swagger UI
   });
+
 
   final server = await io.serve(handler, '0.0.0.0', 8000);
 
   print('Server running on http://${server.address.host}:${server.port}');
-}
-
-void main() async {
-  await startServer();
 }
