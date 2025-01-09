@@ -16,6 +16,28 @@ Future<void> startServer() async {
       password: "123"));
 
   final router = Router();
+  router.get('/pokecard.yaml', (Request request) async {
+    final file = File('pokecard.yaml'); // Đường dẫn tới file YAML
+    if (await file.exists()) {
+      return Response.ok(await file.readAsString(), headers: {
+        'Content-Type': 'application/x-yaml',
+      });
+    } else {
+      return Response.notFound('pokecard.yaml not found');
+    }
+  });
+
+  router.get('/pokecard.yaml', (Request request) async {
+    final file = File('pokecard.yaml'); // Đường dẫn đến file YAML
+    if (await file.exists()) {
+      return Response.ok(await file.readAsString(), headers: {
+        'Content-Type': 'application/x-yaml',
+      });
+    } else {
+      return Response.notFound('pokecard.yaml not found');
+    }
+  });
+
   // Route to serve images
   router.get('/cards/<id>/<filename>', (Request request, String id, String filename) async {
     // First verify if this card exists and has this set_num
@@ -229,6 +251,41 @@ Future<void> startServer() async {
     return Response.ok(jsonEncode({'message': 'Card deleted successfully'}),
         headers: {'Content-Type': 'application/json'});
   });
+  // Route to get all Pokémon names
+  router.get('/pokemon/names', (Request request) async {
+    try {
+      // Query to fetch all Pokémon names and ids
+      final result = await connection.execute(
+          Sql('SELECT id, name FROM pokemon_cards'));
+
+      if (result.isEmpty) {
+        return Response.ok(
+            jsonEncode({'data': []}),
+            headers: {'Content-Type': 'application/json'});
+      }
+
+      // Map query result to JSON
+      final data = result.map((row) {
+        final map = row.toColumnMap();
+        return {
+          'id': map['id'] as String, // Xử lý id là kiểu String
+          'name': map['name'] as String, // Xử lý name là kiểu String
+        };
+      }).toList();
+
+      return Response.ok(
+          jsonEncode({'data': data}),
+          headers: {'Content-Type': 'application/json'});
+    } catch (e) {
+      print('Error fetching Pokémon data: $e');
+      return Response.internalServerError(
+          body: jsonEncode({'error': 'Failed to fetch Pokémon data'}),
+          headers: {'Content-Type': 'application/json'});
+    }
+  });
+
+
+
 
   // Create separate handlers
   final apiHandler = Pipeline()
@@ -249,19 +306,33 @@ Future<void> startServer() async {
 
   final handler = Pipeline()
       .addMiddleware(corsHeaders(headers: {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': '*', // Cho phép tất cả các domain
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': '*',
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Expose-Headers': 'Content-Length, Content-Type',
-  },))
+  }))
       .addHandler((request) {
+    // Kiểm tra các route API
     if (request.url.path.startsWith('cards') ||
-        request.url.path.startsWith('upload')) {
-      return apiHandler(request);
+        request.url.path.startsWith('upload') ||
+        request.url.path.startsWith('pokemon/names')) {
+      return apiHandler(request); // Xử lý API
     }
-    return swaggerHandler(request);
+    // Phục vụ Swagger UI
+    if (request.url.path == 'pokecard.yaml') {
+      final file = File('pokecard.yaml'); // Đường dẫn tới file YAML
+      if (file.existsSync()) {
+        return Response.ok(file.readAsStringSync(), headers: {
+          'Content-Type': 'application/x-yaml',
+        });
+      } else {
+        return Response.notFound('pokecard.yaml not found');
+      }
+    }
+    return swaggerHandler(request); // Trả về Swagger UI
   });
+
 
   final server = await io.serve(handler, '0.0.0.0', 8000);
 
