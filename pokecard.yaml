@@ -4,7 +4,7 @@ info:
   description: API for managing Pokemon card collection
   version: 1.0.0
 servers:
-  - url: https://8000-idx-pokeapi-1734620675461.cluster-3g4scxt2njdd6uovkqyfcabgo6.cloudworkstations.dev
+  - url: http://localhost:8000
     description: Development server
 paths:
   /cards:
@@ -150,6 +150,26 @@ paths:
                     type: string
                   filename:
                     type: string
+  /pokemon/names:
+    get:
+      description: Get all Pokémon names
+      responses:
+        200:
+          description: List of Pokémon names
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  names:
+                    type: array
+                    items:
+                      type: string
+              example:
+                names:
+                  - Pikachu
+                  - Bulbasaur
+                  - Charmander
 
 components:
   schemas:
